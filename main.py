@@ -30,6 +30,7 @@ EVOC_ROLE_ID = 1330291574814539786
 PING_ROLE_ID = 1330291576202727567
 INSTRUCTIONS_CHANNEL_ID = 1202417039893995651
 TRAINING_LOG_FILE = "training_logs.json"
+RESTART_INFO_FILE = "restart_info.json"
 YOUR_DISCORD_USER_ID = 895170771830308865  # Replace with your actual user ID
 
 def load_training_logs():
@@ -61,6 +62,19 @@ async def on_ready():
         logging.info(f"Synced {len(synced)} command(s)")
     except Exception as e:
         logging.error(f"Command sync error: {e}")
+
+    # Restart confirmation logic
+    if os.path.exists(RESTART_INFO_FILE):
+        try:
+            with open(RESTART_INFO_FILE, "r") as f:
+                restart_data = json.load(f)
+            channel = bot.get_channel(restart_data["channel_id"])
+            if channel:
+                await channel.send(f"<@{restart_data['user_id']}>, ✅ Restart complete.")
+                logging.info("Sent restart complete confirmation.")
+            os.remove(RESTART_INFO_FILE)
+        except Exception as e:
+            logging.error(f"Failed to send restart complete message: {e}")
 
 @tree.command(name="training", description="Log a LASD training session")
 @app_commands.describe(
@@ -198,10 +212,17 @@ async def restart(interaction: discord.Interaction):
         logging.warning(f"Unauthorized restart attempt by {interaction.user}")
         return
 
+    # Save info for restart confirmation
+    with open(RESTART_INFO_FILE, "w") as f:
+        json.dump({
+            "user_id": interaction.user.id,
+            "channel_id": interaction.channel.id
+        }, f)
+
     await interaction.response.send_message("♻️ Restarting bot...", ephemeral=False)
     logging.info(f"Bot restart initiated by {interaction.user}")
     await bot.close()
-    os.execv(sys.executable, ['python'] + sys.argv)
+    os.execv(sys.executable, [sys.executable] + sys.argv)
 
 # Run the bot
 bot.run("MTM3MDc3NzExNDMxMTI2MjMxOA.G27o-r.VDAE7xsAwqoxwANsCyRzvqknw0TNNyntFWR4eI")
