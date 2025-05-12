@@ -1,0 +1,72 @@
+@tree.command(name="restart", description="Restart the bot and update all packages (Admin only)")
+async def restart(interaction: discord.Interaction):
+    if interaction.user.id != YOUR_DISCORD_USER_ID:
+        embed = discord.Embed(
+            title="❌ Permission Denied",
+            description="You don't have permission to restart the bot.",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        logging.warning(f"Unauthorized restart attempt by {interaction.user}")
+        return
+
+    await interaction.response.defer(ephemeral=False, thinking=True)
+    logging.info(f"Bot update and restart initiated by {interaction.user}")
+
+    try:
+        start_time = time.perf_counter()
+
+        # Upgrade pip
+        pip_start = time.perf_counter()
+        subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], check=True)
+        pip_duration = time.perf_counter() - pip_start
+
+        # Freeze and parse
+        freeze_start = time.perf_counter()
+        installed_packages = subprocess.check_output([sys.executable, "-m", "pip", "freeze"]).decode().splitlines()
+        package_names = [pkg.split('==')[0] for pkg in installed_packages]
+        freeze_duration = time.perf_counter() - freeze_start
+
+        # Upgrade all packages
+        upgrade_start = time.perf_counter()
+        if package_names:
+            subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade"] + package_names, check=True)
+        upgrade_duration = time.perf_counter() - upgrade_start
+
+        total_duration = time.perf_counter() - start_time
+        eta = round(total_duration + 5)  # Buffer for restart
+
+        embed = discord.Embed(
+            title="♻️ Restarting Bot",
+            description="✅ All packages have been updated. Restarting now...",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="📦 pip Upgrade Time", value=f"{pip_duration:.2f} seconds", inline=True)
+        embed.add_field(name="📋 Freeze Parse Time", value=f"{freeze_duration:.2f} seconds", inline=True)
+        embed.add_field(name="🔄 Packages Upgrade Time", value=f"{upgrade_duration:.2f} seconds", inline=True)
+        embed.add_field(name="⏱️ Total Time", value=f"{total_duration:.2f} seconds", inline=True)
+        embed.add_field(name="🕒 Estimated Restart Time", value=f"{eta} seconds", inline=False)
+        embed.set_footer(text=f"Initiated by {interaction.user}", icon_url=interaction.user.display_avatar.url)
+
+        await interaction.followup.send(embed=embed, ephemeral=False)
+        logging.info(f"Estimated restart duration: {eta} seconds")
+
+    except Exception as e:
+        logging.error(f"Update failed: {e}")
+        error_embed = discord.Embed(
+            title="❌ Update Failed",
+            description=f"An error occurred during the update:\n```{str(e)}```",
+            color=discord.Color.red()
+        )
+        await interaction.followup.send(embed=error_embed, ephemeral=True)
+        return
+
+    # Save restart info
+    with open(RESTART_INFO_FILE, "w") as f:
+        json.dump({
+            "user_id": interaction.user.id,
+            "channel_id": interaction.channel.id
+        }, f)
+
+    await bot.close()
+    os.execv(sys.executable, [sys.executable] + sys.argv)
