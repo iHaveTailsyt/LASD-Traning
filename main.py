@@ -38,7 +38,7 @@ RESTART_INFO_FILE = "restart_info.json"
 MAINTENANCE_FILE = "maintenance.json"
 COOLDOWN_FILE = "training_cooldowns.json"
 TRAINING_ID_FILE = "training_ids.json"
-YOUR_DISCORD_USER_ID = 895170771830308865  # Replace with your actual user ID
+YOUR_DISCORD_USER_ID = 895170771830308865
 
 def load_training_logs():
     try:
